@@ -100,55 +100,21 @@ function post_tagscan(data) {
 function authorize_tag(tag) {
     // note in line below a= is the authorization ie: garage = 1
     // http://localhost:3000/tags/1234566ef/authorize.json?a=1
-    http.get('http://localhost:3000/tags/'+tag+'/authorize.json?a=1', function(res) {
-        const { statusCode } = res;
-        const contentType = res.headers['content-type'];
+    let authorize_url = 'http://localhost:3000/tags/'+tag+'/authorize.json?a=1';
 
-        let error;
-        if (statusCode !== 200)
+    got(
+        authorize_url,
+        { json: true }
+    ).then( (response) => {
+        console.log(response.body);
+        if(response.body['response'] == 'authorized')
         {
-            error = new Error('Authorization request failed, ' +
-                              `Status Code: ${statusCode}`);
+            get_door_state(processDoorState);
+            console.log('Tag '+tag+' authorized');
         }
-        else if (!/^application\/json/.test(contentType))
-        {
-            error = new Error('Invalid content-type. ' +
-                              `Expected application/json but received ${contentType}`);
-        } 
-        
-        if (error)
-        {
-            console.error(error.message);
-            res.resume();
-            return;
-        }
-
-        res.setEncoding('utf8');
-        let rawData='';
-        res.on('data', function(chunk) {
-            rawData += chunk; });
-        res.on('end', function() {
-            try
-            {
-                const parsedData = JSON.parse(rawData);
-                console.log(parsedData);
-                if (parsedData['response'] == 'authorized')
-                {
-                    //call garage open?
-                    get_door_state(processDoorState);
-                    console.log('Successful authorization');
-                }
-            }
-            catch (e)
-            {
-                console.error(e.message);
-            }
-        });
-    }).on('error', function(e) {
-        console.error(`Problem with authorization request: ${e.message}`);
+    }).catch( (error) => {
+        console.log("Door authorization error: "+error);
     });
-
-    return;
 };
 
 function get_door_state(callback) {
@@ -161,52 +127,30 @@ function get_door_state(callback) {
     let url = api_url+device_id+"/doorstate?access_token="+access_token;
 
     let error = '';
-    console.log('get door state ', url);
+    console.log('get door state API call=', url);
     // get state from particle API
     let result = 'up'; //default to up?
-    https.get(url, function(res) {
-        const { statusCode } = res;
-        const contentType = res.headers['content-type'];
-        //console.log('headers:', res.headers);
-        //console.log('statusCode:', res.statusCode);
+    
+    let getOptions = {
+        json: true,
+    };
 
-        let error;
-        if (statusCode !== 200) {
-            error = new Error('Request Failed.\n' +
-                `Status Code: ${statusCode}`);
-        } else if (!/^application\/json/.test(contentType)) {
-            error = new Error('Invalid content-type.\n' +
-                `Expected application/json but received ${contentType}`);
-        }
-        if (error) {
-            error = error.message;
-            console.error(error);
-            // consume response data to free up memory
-            res.resume();
-            return;
-        }
-
-        res.setEncoding('utf8');
-        let rawData = '';
-        res.on('data', (chunk) => { rawData += chunk; });
-        res.on('end', () => {
-          try {
-            const parsedData = JSON.parse(rawData);
-            console.log(parsedData);
-            result = parsedData['result']; //error handling on this?
-            //console.log(result);
-          } catch (e) {
-            console.error(e.message);
-          }
-          callback && callback(error, result);
-        });
-    }).on('error', function(e) {
-        console.error(`door state api call error: ${e.message}`);
+    got(
+        url,
+        getOptions
+    ).then( (response) => {
+        // default encoding is utf-8
+        console.log(response.body);
+        result = response.body['result']; //error handling on this?
+        callback && callback(error, result);
+    }).catch( (error) => {
+        //console.log(error);
+        callback && callback(error, result);
     });
 };
 
 function processDoorState (error, state)  {
-    if (error) return console.error("ERROR", error)
+    if (error) return console.error("door state error", error)
     if (state == 'down')
     {
         console.log("Door down, opening door");
