@@ -1,0 +1,9 @@
+const config = {
+    particle: {
+        api_url: 'https://api.particle.io/v1/devices/',
+        device_id: '',
+        access_token: ''
+    }
+}
+
+module.exports = config;
