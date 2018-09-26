@@ -3,6 +3,7 @@ var http = require('http');
 var https = require('https');
 var got  = require('got');
 var csv = require('csv');
+var cache = require('memory-cache');
 var config = require('./config.js');
 var door_state = '';
 var door_state_update_time = '';
@@ -128,20 +129,32 @@ function authorize_tag(tag) {
     // note in line below a= is the authorization ie: garage = 1
     // http://localhost:3000/tags/1234566ef/authorize.json?a=1
     let authorize_url = 'http://localhost:3000/tags/'+tag+'/authorize.json?a=1';
+    let cache_key = '__garage_authorizer__' + '/authorizing/' + tag;
 
-    got(
-        authorize_url,
-        { json: true }
-    ).then( (response) => {
-        console.log(response.body);
-        if(response.body['response'] == 'authorized')
-        {
-            get_door_state(processDoorState);
-            console.log('Tag '+tag+' authorized');
-        }
-    }).catch( (error) => {
-        console.log("Door authorization error: "+error);
-    });
+    // check cache for key
+    let result = cache.get(cache_key);
+    if (result) {
+        // value cached so we can assume we don't have to do anything
+        console.log('skipping authorization for '+tag+' due to cache hit!');
+        return;
+    } else {
+        // cache the fact that we are processing this tag
+        // cache for 30 seconds
+        cache.put(cache_key, '1', 30000);
+        got(
+            authorize_url,
+            { json: true }
+        ).then( (response) => {
+            console.log(response.body);
+            if(response.body['response'] == 'authorized')
+            {
+                get_door_state(processDoorState);
+                console.log('Tag '+tag+' authorized');
+            }
+        }).catch( (error) => {
+            console.log("Door authorization error: "+error);
+        });
+    }
 };
 
 function get_door_state(callback) {
