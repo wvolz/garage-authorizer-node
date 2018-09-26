@@ -5,7 +5,6 @@ var got  = require('got');
 var csv = require('csv');
 var config = require('./config.js');
 
-// TODO: need to make listening port and address configurable
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
 var server = net.createServer(function(socket) {
@@ -221,6 +220,6 @@ server.on('error', function(err) {
     throw err;
 });
 
-server.listen(1337, '127.0.0.1', function() {
+server.listen(config.listen_port||1337, config.listen_addr||'127.0.0.1', function() {
     console.log('server bound to ', server.address());
 });

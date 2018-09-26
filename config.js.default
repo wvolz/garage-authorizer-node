@@ -3,7 +3,9 @@ const config = {
         api_url: 'https://api.particle.io/v1/devices/',
         device_id: '',
         access_token: ''
-    }
+    },
+    listen_addr: '127.0.0.1',
+    listen_port: '1337'
 }
 
 module.exports = config;
