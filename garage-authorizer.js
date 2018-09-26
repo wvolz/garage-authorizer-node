@@ -4,6 +4,8 @@ var https = require('https');
 var got  = require('got');
 var csv = require('csv');
 var config = require('./config.js');
+var door_state = '';
+var door_state_update_time = '';
 
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
@@ -152,26 +154,35 @@ function get_door_state(callback) {
     let url = api_url+device_id+"/doorstate?access_token="+access_token;
 
     let error = '';
-    console.log('get door state API call=', url);
-    // get state from particle API
     let result = 'up'; //default to up?
-    
     let getOptions = {
         json: true,
     };
-
-    got(
-        url,
-        getOptions
-    ).then( (response) => {
-        // default encoding is utf-8
-        console.log(response.body);
-        result = response.body['result']; //error handling on this?
-        callback && callback(error, result);
-    }).catch( (error) => {
-        //console.log(error);
-        callback && callback(error, result);
-    });
+    // check to see if we have a cached door state to reduce API calls
+    // TODO make door state cache timeout configurable?
+    if (door_state_update_time == '' || (Date.now() - door_state_update_time > 15000)) {
+        console.log('get door state API call=', url);
+        
+        // get state from particle API
+        got(
+            url,
+            getOptions
+        ).then( (response) => {
+            // default encoding is utf-8
+            console.log(response.body);
+            result = response.body['result']; //error handling on this?
+            door_state = result;
+            door_state_update_time = Date.now();
+            callback && callback(error, result);
+        }).catch( (error) => {
+            //console.log(error);
+            // Don't update door state here?
+            callback && callback(error, result);
+        });
+    } else {
+        console.log('using cached result for door state');
+        callback && callback(error, door_state);
+    }
 };
 
 function processDoorState (error, state)  {
