@@ -5,63 +5,89 @@ var got  = require('got');
 var csv = require('csv');
 var config = require('./config.js');
 
+// TODO: need to make listening port and address configurable
+// TODO: need to make address for auth server configurable
+// TODO: what happens when multiple clients connect and send data?
 var server = net.createServer(function(socket) {
     console.log('client connected from ', socket.remoteAddress);
     socket.setEncoding('utf8');
     var data = '';
     socket.on('end', function() {
         console.log('client disconnected');
-        // end of message = \0 \u0000 or NUL
-        var in_data = data.split("\0");
-        in_data.forEach(function(x) {
-            // TODO move to a function
-            // broken out by newlines
-            var x_lines = x.split("\r\n");
-            x_lines.forEach(function(line) {
-                const hashComment = /(#.*)/;
-                if (hashComment.test(line))
-                {
-                    return;
-                }
-                csv.parse(line, function(err, row) {
-                    //console.log(row);
-                    row.forEach(function(y) {
-                        console.log(y);
-                        var tag = { "tag_epc" : y[0],
-                                    "tag_pc"  : y[6],
-                                    "antenna" : y[5],
-                                    "rssi"    : y[1]
-                        };
-                        var tagscan = { "tagscan" : tag };
-
-                        // make sure we parsed some data
-                        // TODO more detailed error checking
-                        if (y.length < 7)
-                        {
-                            var error = new Error('Invalid protocol input data received');
-                            socket.destroy(error);
-                        }
-                        else
-                        {
-                            console.log(JSON.stringify(tagscan));
-                            //post_tagscan(JSON.stringify(tagscan));
-                            authorize_tag(tag['tag_epc']);
-                            socket.end();
-                        }
-                    });
-                });
-            });
-        });
     });
     socket.on('data', function(chunk) {
         //console.log(data);
         data += chunk;
+        // look for NUL to indicate a complete set of data
+        // from the reader/end of message from the reader
+        // TODO need to timeout connection to avoid using up
+        // memory due to connection that never closes + no
+        // NUL terminators found
+        d_index = data.indexOf('\0');
+        while(d_index > -1) {
+            try {
+                string = data.substring(0,d_index);
+                // call process function here
+                parse_input(string);
+                console.log("Nul terminated input="+string);
+            }
+            catch(error) {
+                console.error(error);
+            }
+            data = data.substring(d_index+1);
+            d_index = data.indexOf('\0'); // find next delimiter in buffer
+        }
     });
     socket.on('error', function(e) {
         // TODO how do we handle other errors?
         console.error('Socket error:', e.message);
     });
 });
+
+function parse_input(data) {
+    // end of message = \0 \u0000 or NUL
+    var in_data = data.split("\0");
+    in_data.forEach(function(x) {
+        // broken out by newlines
+        var x_lines = x.split("\r\n");
+        x_lines.forEach(function(line) {
+            const hashComment = /(#.*)/;
+            if (hashComment.test(line))
+            {
+                return;
+            }
+            csv.parse(line, function(err, row) {
+                //console.log(row);
+                row.forEach(function(y) {
+                    console.log(y);
+                    var tag = { "tag_epc" : y[0],
+                                "tag_pc"  : y[6],
+                                "antenna" : y[5],
+                                "rssi"    : y[1]
+                    };
+                    var tagscan = { "tagscan" : tag };
+    
+                    // make sure we parsed some data
+                    // TODO more detailed error checking
+                    if (y.length < 7)
+                    {
+                        var error = new Error('Invalid protocol input data received');
+                        //TODO do we need to hangup the connection here?
+                        //socket.destroy(error);
+                    }
+                    else
+                    {
+                        console.log(JSON.stringify(tagscan));
+                        //post_tagscan(JSON.stringify(tagscan));
+                        authorize_tag(tag['tag_epc']);
+                        //TODO do we need to hangup the connection here?
+                        //socket.end();
+                    }
+                });
+            });
+        });
+    });
+}
 
 function post_tagscan(data) {
     const options = {
