@@ -5,8 +5,7 @@ var got  = require('got');
 var csv = require('csv');
 var cache = require('memory-cache');
 var config = require('./config.js');
-var door_state = '';
-var door_state_update_time = '';
+var doorStateUpdateInProcess = 0;
 
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
@@ -81,7 +80,10 @@ function parse_input(data) {
                     {
                         console.log(JSON.stringify(tagscan));
                         //post_tagscan(JSON.stringify(tagscan));
-                        authorize_tag(tag['tag_epc']);
+                        // filter out false readings from antenna 0 
+                        if (tag['antenna'] == 1) {
+                            authorize_tag(tag['tag_epc']);
+                        }
                         //TODO do we need to hangup the connection here?
                         //socket.end();
                     }
@@ -131,7 +133,7 @@ function authorize_tag(tag) {
     let authorize_url = 'http://localhost:3000/tags/'+tag+'/authorize.json?a=1';
     let cache_key = '__garage_authorizer__' + '/authorizing/' + tag;
 
-    // check cache for key
+    // check cache for key, if present skip authorization/opening
     let result = cache.get(cache_key);
     if (result) {
         // value cached so we can assume we don't have to do anything
@@ -158,7 +160,8 @@ function authorize_tag(tag) {
 };
 
 function get_door_state(callback) {
-    // check door state, return 1 if down, 0 if up
+    // check door state
+    // TODO reduce number of calls to "callback"
     // TODO below should be configurable 
     let api_url = config.particle.api_url;
     let device_id = config.particle.device_id;
@@ -171,30 +174,38 @@ function get_door_state(callback) {
     let getOptions = {
         json: true,
     };
+    let cache_key = '__garage_authorizer__' + '/doorState';
     // check to see if we have a cached door state to reduce API calls
     // TODO make door state cache timeout configurable?
-    if (door_state_update_time == '' || (Date.now() - door_state_update_time > 15000)) {
-        console.log('get door state API call=', url);
-        
-        // get state from particle API
-        got(
-            url,
-            getOptions
-        ).then( (response) => {
-            // default encoding is utf-8
-            console.log(response.body);
-            result = response.body['result']; //error handling on this?
-            door_state = result;
-            door_state_update_time = Date.now();
-            callback && callback(error, result);
-        }).catch( (error) => {
-            //console.log(error);
-            // Don't update door state here?
-            callback && callback(error, result);
-        });
-    } else {
+    let door_state_cached = cache.get(cache_key);
+    if (door_state_cached) {
         console.log('using cached result for door state');
-        callback && callback(error, door_state);
+        callback && callback(error, door_state_cached);
+    } else {
+        if (doorStateUpdateInProcess) {
+            console.log('skipped door state API call due to pending update');
+        } else {
+            console.log('get door state API call=', url);
+            doorStateUpdateInProcess = 1;    
+            // get state from particle API
+            got(
+                url,
+                getOptions
+            ).then( (response) => {
+                // default encoding is utf-8
+                console.log(response.body);
+                result = response.body['result']; //error handling on this?
+                // add state to cache for 15 seconds
+                cache.put(cache_key, result, 15000);
+                doorStateUpdateInProcess = 0;
+                callback && callback(error, result);
+            }).catch( (error) => {
+                //console.log(error);
+                // Don't update door state here?
+                doorStateUpdateInProcess = 0;
+                callback && callback(error, result);
+            });
+        }
     }
 };
 
