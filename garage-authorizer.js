@@ -94,37 +94,17 @@ function parse_input(data) {
 }
 
 function post_tagscan(data) {
-    const options = {
-        hostname: 'localhost',
-        port: 3000,
-        path: '',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(data)
-        }
-    };
+    let data_post_url = config.tagscan_url;
 
-    const req = http.request(options, function(res) {
-        console.log(`Post status: ${res.statusCode}`);
-        res.setEncoding('utf8');
-        res.on('data', function(chunk) {
-            console.log(`Body: data`);
-        });
-        res.on('end', function(e) {
-            console.error('No more data in response.');
-        });
+    got(
+        data_post_url,
+        { json: true, body: data }
+    /*).then( (response) => {
+        // check for success here?
+    }*/
+    ).catch( (error) => {
+        console.log(`Problem with post request: ${error.message}`);
     });
-
-    req.on('error', function(e) {
-        console.error(`Problem with post request: ${e.message}`);
-        return;
-    });
-
-    req.write(data);
-    req.end();
-
-    return;
 };
 
 function authorize_tag(tag) {
