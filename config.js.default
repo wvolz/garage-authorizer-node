@@ -4,6 +4,7 @@ const config = {
         device_id: '',
         access_token: ''
     },
+    tagauthorize_host: 'http://magicchef.volzfamily.net',
     tagscan_url: 'http://magicchef.volzfamily.net:3000/tagscans.json',
     listen_addr: '127.0.0.1',
     listen_port: '1337'

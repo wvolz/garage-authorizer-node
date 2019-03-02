@@ -117,7 +117,8 @@ function post_tagscan(data) {
 function authorize_tag(tag) {
     // note in line below a= is the authorization ie: garage = 1
     // http://localhost:3000/tags/1234566ef/authorize.json?a=1
-    let authorize_url = 'http://localhost:3000/tags/'+tag+'/authorize.json?a=1';
+    let tagauthorize_host = config.tagauthorize_host; 
+    let authorize_url = tagauthorize_host+'/tags/'+tag+'/authorize.json?a=1';
     let cache_key = '__garage_authorizer__' + '/authorizing/' + tag;
 
     // check cache for key, if present skip authorization/opening
