@@ -1,0 +1,13 @@
+[Unit]
+Description=Garage authorizer
+After=network.target auditd.service
+
+[Service]
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/garage-authorizer-node
+Restart=on-failure
+ExecStart=/opt/node/bin/node garage-authorizer.js
+
+[Install]
+WantedBy=multi-user.target
