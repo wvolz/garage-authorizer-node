@@ -86,7 +86,7 @@ function parse_input(data) {
                     else
                     {
                         logger.info(JSON.stringify(tagscan));
-                        //post_tagscan(JSON.stringify(tagscan));
+                        post_tagscan(tagscan);
                         // filter out false readings from antenna 0 
                         if (tag['antenna'] == 1) {
                             authorize_tag(tag['tag_epc']);
@@ -123,6 +123,7 @@ function authorize_tag(tag) {
 
     // check cache for key, if present skip authorization/opening
     let result = cache.get(cache_key);
+    logger.info('authorizing tag');
     if (result) {
         // value cached so we can assume we don't have to do anything
         logger.info('skipping authorization for '+tag+' due to cache hit!');
