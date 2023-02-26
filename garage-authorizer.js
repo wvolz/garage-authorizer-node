@@ -102,10 +102,17 @@ function parse_input(data) {
 
 function post_tagscan(data) {
     let data_post_url = config.tagscan_url;
+    let api_token = config.api_token;
 
     got(
         data_post_url,
-        { json: true, body: data }
+        {
+	    json: true,
+	    body: data,
+	    headers: {
+		'Authorization': 'Bearer '+api_token
+	    }
+	}
     /*).then( (response) => {
         // check for success here?
     }*/
@@ -119,6 +126,7 @@ function authorize_tag(tag) {
     // http://localhost:3000/tags/1234566ef/authorize.json?a=1
     let tagauthorize_host = config.tagauthorize_host; 
     let authorize_url = tagauthorize_host+'/tags/'+tag+'/authorize.json?a=1';
+    let api_token = config.api_token;
     let cache_key = '__garage_authorizer__' + '/authorizing/' + tag;
 
     // check cache for key, if present skip authorization/opening
@@ -134,7 +142,12 @@ function authorize_tag(tag) {
         cache.put(cache_key, '1', 30000);
         got(
             authorize_url,
-            { json: true }
+            {
+	        json: true,
+		headers: {
+		    'Authorization': 'Bearer '+api_token
+		}
+	    }
         ).then( (response) => {
             logger.info(response.body);
             if(response.body['response'] == 'authorized')
