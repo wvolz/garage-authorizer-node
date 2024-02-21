@@ -45,7 +45,7 @@ var server = net.createServer(function(socket) {
                 logger.info("Nul terminated input="+string);
             }
             catch(error) {
-                logger.error(error);
+                logger.error("Inbound data parse error: "+error);
             }
             data = data.substring(d_index+1);
             d_index = data.indexOf('\0'); // find next delimiter in buffer
@@ -126,7 +126,7 @@ function post_tagscan(data) {
         // check for success here?
     }*/
     ).catch( (error) => {
-        logger.warn(`Problem with post request: ${error.message}`);
+        logger.error(`Problem with post request (${error.code}): ${error}`);
     });
 };
 
@@ -223,7 +223,7 @@ function processDoorState (error, state)  {
         logger.info("Door down, opening door");
         openDoor(error);
     } else {
-        logger.info("Door up, no action ", state);
+        logger.info("Door up, no action needed");
     }
 };
 
@@ -236,13 +236,12 @@ function openDoor (error) {
 
     let url = api_url+device_id+"/door1move?access_token="+access_token;
 
-    logger.info("APIcall=",url);
+    logger.info("openDoor API request URL = ",url);
 
     got.post(url).json().then( (api_response) => {
-        logger.info(JSON.stringify(api_response));
+        logger.info("openDoor api response = "+util.inspect(api_response));
     }).catch( (error) => {
-        logger.warn("Got error = "+error.statusMessage);
-        logger.warn("error = "+error);
+        logger.error("Error moving door = "+error);
     });
 };
 
