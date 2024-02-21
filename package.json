@@ -1,11 +1,13 @@
 {
   "name": "garage-authorizer-node",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sends command to open garage door based on result of http get",
-  "main": "garage-authorizer.js",
+  "exports": "./garage-authorizer.js",
+  "engines": {"node": ">=20"},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "type": "module",
   "author": "Warren Volz <warren@warrenvolz.com>",
   "license": "MIT",
   "dependencies": {

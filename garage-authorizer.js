@@ -1,17 +1,17 @@
-var net = require('net');
-var http = require('http');
-var https = require('https');
-var got  = require('got');
-var csv = require('csv');
-var cache = require('memory-cache');
-const pino = require('pino');
+import net from 'node:net';
+import csv from 'csv';
+import cache from 'memory-cache';
+import got from 'got';
+import pino from 'pino';
+import config from './config.js';
+
 const logger = pino({
     prettyPrint: {
         colorize: true,
         translateTime: 'SYS:standard'
     }
 })
-var config = require('./config.js');
+
 var doorStateUpdateInProcess = 0;
 
 // TODO: need to make address for auth server configurable
@@ -31,10 +31,10 @@ var server = net.createServer(function(socket) {
         // TODO need to timeout connection to avoid using up
         // memory due to connection that never closes + no
         // NUL terminators found
-        d_index = data.indexOf('\0');
+        var d_index = data.indexOf('\0');
         while(d_index > -1) {
             try {
-                string = data.substring(0,d_index);
+                var string = data.substring(0,d_index);
                 // call process function here
                 parse_input(string);
                 logger.info("Nul terminated input="+string);
@@ -74,7 +74,7 @@ function parse_input(data) {
                                 "rssi"    : y[1]
                     };
                     var tagscan = { "tagscan" : tag };
-    
+
                     // make sure we parsed some data
                     // TODO more detailed error checking
                     if (y.length < 7)
@@ -87,7 +87,7 @@ function parse_input(data) {
                     {
                         logger.info(JSON.stringify(tagscan));
                         post_tagscan(tagscan);
-                        // filter out false readings from antenna 0 
+                        // filter out false readings from antenna 0
                         if (tag['antenna'] == 1) {
                             authorize_tag(tag['tag_epc']);
                         }
@@ -124,7 +124,7 @@ function post_tagscan(data) {
 function authorize_tag(tag) {
     // note in line below a= is the authorization ie: garage = 1
     // http://localhost:3000/tags/1234566ef/authorize.json?a=1
-    let tagauthorize_host = config.tagauthorize_host; 
+    let tagauthorize_host = config.tagauthorize_host;
     let authorize_url = tagauthorize_host+'/tags/'+tag+'/authorize.json?a=1';
     let api_token = config.api_token;
     let cache_key = '__garage_authorizer__' + '/authorizing/' + tag;
@@ -164,7 +164,7 @@ function authorize_tag(tag) {
 function get_door_state(callback) {
     // check door state
     // TODO reduce number of calls to "callback"
-    // TODO below should be configurable 
+    // TODO below should be configurable
     let api_url = config.particle.api_url;
     let device_id = config.particle.device_id;
     let access_token = config.particle.access_token;
@@ -188,7 +188,7 @@ function get_door_state(callback) {
             logger.info('skipped door state API call due to pending update');
         } else {
             logger.info('get door state API call=', url);
-            doorStateUpdateInProcess = 1;    
+            doorStateUpdateInProcess = 1;
             // get state from particle API
             got(
                 url,
@@ -224,7 +224,7 @@ function processDoorState (error, state)  {
 
 function openDoor (error) {
     if (error) return logger.error("ERROR", error)
-    // TODO below should be configurable 
+    // TODO below should be configurable
     let api_url = config.particle.api_url;
     let device_id = config.particle.device_id;
     let access_token = config.particle.access_token;
