@@ -19,6 +19,10 @@ var doorStateUpdateInProcess = 0;
 var server = net.createServer(function(socket) {
     logger.info('client connected from ', socket.remoteAddress);
     socket.setEncoding('utf8');
+    // below addresses TODO to set a timeout on connections
+    // TODO does this address memory / wrong type of client?
+    // think web broswer that reconnects over and over
+    socket.setTimeout(3000);
     var data = '';
     socket.on('end', function() {
         logger.info('client disconnected');
@@ -50,6 +54,10 @@ var server = net.createServer(function(socket) {
         // TODO how do we handle other errors?
         logger.error('Socket error:', e.message);
     });
+    socket.on('timeout', () => {
+        logger.info('socket timeout');
+        socket.end();
+    })
 });
 
 function parse_input(data) {
