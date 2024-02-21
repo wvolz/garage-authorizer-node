@@ -4,6 +4,7 @@ import cache from 'memory-cache';
 import got from 'got';
 import pino from 'pino';
 import config from './config.js';
+import util from 'node:util';
 
 const logger = pino({
     prettyPrint: {
@@ -112,15 +113,15 @@ function post_tagscan(data) {
     let data_post_url = config.tagscan_url;
     let api_token = config.api_token;
 
-    got(
-        data_post_url,
-        {
-	    json: true,
-	    body: data,
+    let gotOptions = {
+	    json: data,
 	    headers: {
-		'Authorization': 'Bearer '+api_token
-	    }
-	}
+		    'Authorization': 'Bearer '+api_token
+        }
+    }
+
+    got.post(
+        data_post_url, gotOptions
     /*).then( (response) => {
         // check for success here?
     }*/
@@ -151,21 +152,23 @@ function authorize_tag(tag) {
         got(
             authorize_url,
             {
-	        json: true,
-		headers: {
-		    'Authorization': 'Bearer '+api_token
-		}
-	    }
-        ).then( (response) => {
-            logger.info(response.body);
-            if(response.body['response'] == 'authorized')
-            {
-                get_door_state(processDoorState);
-                logger.info('Tag '+tag+' authorized');
+                headers: {
+                    'Authorization': 'Bearer '+api_token
+                }
+            })
+            .json()
+            .then((auth_reply) => {
+                logger.info("Auth reply = "+util.inspect(auth_reply));
+                if (auth_reply['response'] == 'authorized')
+                {
+                        get_door_state(processDoorState);
+                        logger.info('Tag '+tag+' authorized');
+                }
+            })
+            .catch((error) => {
+                logger.error("Door authorization error \("+error.code+"\): "+error);
             }
-        }).catch( (error) => {
-            logger.warn("Door authorization error: "+error);
-        });
+        );
     }
 };
 
@@ -181,9 +184,6 @@ function get_door_state(callback) {
 
     let error = '';
     let result = 'up'; //default to up?
-    let getOptions = {
-        json: true,
-    };
     let cache_key = '__garage_authorizer__' + '/doorState';
     // check to see if we have a cached door state to reduce API calls
     // TODO make door state cache timeout configurable?
@@ -198,13 +198,10 @@ function get_door_state(callback) {
             logger.info('get door state API call=', url);
             doorStateUpdateInProcess = 1;
             // get state from particle API
-            got(
-                url,
-                getOptions
-            ).then( (response) => {
+            got(url).json().then( (api_response) => {
                 // default encoding is utf-8
-                logger.info(response.body);
-                result = response.body['result']; //error handling on this?
+                logger.info("Response = "+util.inspect(api_response));
+                result = api_response['result']; //error handling on this?
                 // add state to cache for 15 seconds
                 cache.put(cache_key, result, 15000);
                 doorStateUpdateInProcess = 0;
@@ -241,20 +238,8 @@ function openDoor (error) {
 
     logger.info("APIcall=",url);
 
-    const options = {
-        method: 'POST'
-    };
-
-    got(
-        url, options
-    ).then( (response) => {
-        let parsedData = '';
-        if(response.body)
-        {
-            parsedData = JSON.parse(response.body);
-            logger.info(parsedData);
-        }
-        logger.info(response.statusCode);
+    got.post(url).json().then( (api_response) => {
+        logger.info(JSON.stringify(api_response));
     }).catch( (error) => {
         logger.warn("Got error = "+error.statusMessage);
         logger.warn("error = "+error);
