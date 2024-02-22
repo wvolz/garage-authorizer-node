@@ -11,7 +11,8 @@ const logger = pino({
   //   colorize: true,
   //   translateTime: "SYS:standard",
   // },
-});
+  level: process.env.LOG_LEVEL || 'info'
+})
 
 let doorStateUpdateInProcess = 0
 
@@ -74,6 +75,7 @@ function parseInput (data) {
       parse(line, function (err, row) {
         // logger.debug(row);
         row.forEach(function (y) {
+          logger.debug('parseInput = %s', y)
           const tag = { tag_epc: y[0], tag_pc: y[6], antenna: y[5], rssi: y[1] }
           const tagscan = { tagscan: tag }
 
@@ -84,7 +86,7 @@ function parseInput (data) {
             // TODO do we need to hangup the connection here?
             // socket.destroy(error);
           } else {
-            logger.info(JSON.stringify(tagscan));
+            logger.info('parseInput result %s', JSON.stringify(tagscan))
             postTagscan(tagscan)
             // filter out false readings from antenna 0
             if (tag.antenna == 1) {
@@ -118,6 +120,10 @@ function postTagscan (data) {
         // check for success here?
     } */
     )
+    .then((postReply) => {
+      logger.info('postTagscan completed successfully')
+      logger.debug('postTagscan reply = %s', postReply.body)
+    })
     .catch((error) => {
       logger.error(`Problem with post request (${error.code}): ${error}`)
     })
@@ -133,11 +139,11 @@ function authorizeTag (tag) {
   const cacheKey = '__garage_authorizer__' + '/authorizing/' + tag
 
   // check cache for key, if present skip authorization/opening
-  logger.info("authorizing tag");
   const result = cache.get(cacheKey)
+  logger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
-    logger.info("skipping authorization for " + tag + " due to cache hit!");
+    logger.info('authorizeTag skipping authorization for ' + tag + ' due to cache hit!')
   } else {
     // cache the fact that we are processing this tag
     // cache for 30 seconds
@@ -148,16 +154,16 @@ function authorizeTag (tag) {
       }
     })
       .json()
-        logger.info("Auth reply = " + util.inspect(auth_reply));
-          logger.info("Tag " + tag + " authorized");
       .then((authReply) => {
+        logger.debug('authorizeTag auth reply = ' + util.inspect(authReply))
         if (authReply.response === 'authorized') {
           getDoorState(processDoorState)
+          logger.info('authorizeTag ' + tag + ' authorized')
         }
       })
       .catch((error) => {
-        logger.error("Door authorization error (" + error.code + "): " + error);
-      });
+        logger.error('authorizeTag authorization error (' + error.code + '): ' + error)
+      })
   }
 }
 
@@ -176,22 +182,23 @@ function getDoorState (callback) {
   const cacheKey = '__garage_authorizer__' + '/doorState'
   // check to see if we have a cached door state to reduce API calls
   // TODO make door state cache timeout configurable?
-    logger.info("using cached result for door state");
   const doorStateCached = cache.get(cacheKey)
   if (doorStateCached) {
+    logger.info('getDoorState using cached result for door state')
     callback && callback(error, doorStateCached)
   } else {
     if (doorStateUpdateInProcess) {
-      logger.info("skipped door state API call due to pending update");
+      logger.info('getDoorState skipped door state API call due to pending update')
     } else {
-      logger.info("get door state API call = %s", url);
+      logger.debug('getDoorState door state API call = %s', url)
       doorStateUpdateInProcess = 1
       // get state from particle API
       got(url)
         .json()
         .then((apiResponse) => {
           // default encoding is utf-8
-          logger.info("Response = " + util.inspect(api_response));
+          logger.debug('getDoorState got door state')
+          logger.debug('getDoorState api response = ' + util.inspect(apiResponse))
           result = apiResponse.result // error handling on this?
           // add state to cache for 15 seconds
           cache.put(cacheKey, result, 15000)
@@ -208,18 +215,18 @@ function getDoorState (callback) {
   }
 }
 
-    logger.info("Door down, opening door");
 function processDoorState (error, state) {
-  if (error) return logger.error('door state error %s', error)
+  if (error) return logger.error('processDoorState door state error %s', error)
   if (state === 'down') {
+    logger.info('processDoorState door down, opening door')
     openDoor(error)
   } else {
-    logger.info("Door up, no action needed");
+    logger.info('processDoorState door up, no action needed')
   }
 }
 
 function openDoor (error) {
-  if (error) return logger.error('ERROR %s', error)
+  if (error) return logger.error('openDoor error %s', error)
   // TODO below should be configurable
   const apiUrl = config.particle.apiUrl
   const deviceId = config.particle.deviceId
@@ -227,17 +234,18 @@ function openDoor (error) {
 
   const url = apiUrl + deviceId + '/door1move?accessToken=' + accessToken
 
-  logger.info("openDoor API request URL = %s", url);
+  logger.debug('openDoor API request URL = %s', url)
 
   got
     .post(url)
     .json()
     .then((apiResponse) => {
+      logger.info('openDoor success')
       logger.debug('openDoor API response = ' + util.inspect(apiResponse))
     })
     .catch((error) => {
-      logger.error("Error moving door = " + error);
-    });
+      logger.error('openDoor error moving door = ' + error)
+    })
 }
 
 server.on('error', function (err) {

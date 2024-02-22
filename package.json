@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node ./garage-authorizer.js",
-    "dev": "node ./garage-authorizer.js | npx pino-pretty",
+    "dev": "LOG_LEVEL=debug node ./garage-authorizer.js | npx pino-pretty",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
