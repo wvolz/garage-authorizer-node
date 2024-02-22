@@ -74,6 +74,7 @@ function parseInput (data) {
       }
       parse(line, function (err, row) {
         // logger.debug(row);
+        if (err) return logger.error('parseInput error %s', err)
         row.forEach(function (y) {
           logger.debug('parseInput = %s', y)
           const tag = { tag_epc: y[0], tag_pc: y[6], antenna: y[5], rssi: y[1] }
