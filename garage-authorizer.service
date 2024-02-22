@@ -3,6 +3,7 @@ Description=Garage authorizer
 After=network.target auditd.service
 
 [Service]
+Environment=LOG_TIMESTAMP=false
 User=pi
 Group=pi
 WorkingDirectory=/home/pi/garage-authorizer-node

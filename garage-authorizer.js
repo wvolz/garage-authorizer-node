@@ -11,7 +11,8 @@ const logger = pino({
   //   colorize: true,
   //   translateTime: "SYS:standard",
   // },
-  level: process.env.LOG_LEVEL || 'info'
+  level: process.env.LOG_LEVEL || 'info',
+  timestamp: process.env.LOG_TIMESTAMP !== 'false'
 })
 
 let doorStateUpdateInProcess = 0
