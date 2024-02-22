@@ -7,10 +7,6 @@ import config from './config.js'
 import util from 'node:util'
 
 const logger = pino({
-  // prettyPrint: {
-  //   colorize: true,
-  //   translateTime: "SYS:standard",
-  // },
   level: process.env.LOG_LEVEL || 'info',
   timestamp: process.env.LOG_TIMESTAMP !== 'false'
 })
