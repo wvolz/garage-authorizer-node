@@ -13,3 +13,4 @@ Sends command to open garage door based on result of http get
 - Pino outputs in JSON, but you can use pino-pretty to format it:
 ```npm run dev```
 - Production run: ```npm start```
+- suggest using 'jq' for parsing of output json from production
