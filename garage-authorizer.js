@@ -27,7 +27,7 @@ const server = net.createServer(function (socket) {
   socket.setTimeout(3000)
   let data = ''
   socket.on('end', function () {
-    logger.info('client disconnected')
+    logger.info('client %s:%s disconnected', socket.remoteAddress, socket.remotePort)
   })
   socket.on('data', function (chunk) {
     // logger.debug(data);
