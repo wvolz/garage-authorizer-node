@@ -3,7 +3,9 @@
   "version": "1.0.1",
   "description": "Sends command to open garage door based on result of http get",
   "exports": "./garage-authorizer.js",
-  "engines": {"node": ">=20"},
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,5 +18,8 @@
     "memory-cache": "^0.2.0",
     "pino": "^5.11.1",
     "pino-pretty": "^2.5.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5"
   }
 }
