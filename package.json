@@ -13,7 +13,7 @@
   "author": "Warren Volz <warren@warrenvolz.com>",
   "license": "MIT",
   "dependencies": {
-    "csv": "^3.1.0",
+    "csv": "^6.3.6",
     "got": "^14.2.0",
     "memory-cache": "^0.2.0",
     "pino": "^5.11.1",

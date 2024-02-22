@@ -1,5 +1,5 @@
 import net from "node:net";
-import csv from "csv";
+import { parse } from "csv-parse";
 import cache from "memory-cache";
 import got from "got";
 import pino from "pino";
@@ -71,7 +71,7 @@ function parse_input(data) {
       if (hashComment.test(line)) {
         return;
       }
-      csv.parse(line, function (err, row) {
+      parse(line, function (err, row) {
         //logger.debug(row);
         row.forEach(function (y) {
           logger.info(y);
