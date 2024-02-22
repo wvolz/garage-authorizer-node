@@ -21,8 +21,9 @@
     "pino": "^8.19.0"
   },
   "devDependencies": {
+    "pino-pretty": "^10.3.1",
     "pre-commit": "^1.2.2",
     "prettier": "^3.2.5",
-    "pino-pretty": "^10.3.1"
+    "standard": "^17.1.0"
   }
 }

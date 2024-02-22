@@ -1,12 +1,12 @@
 export default {
-  api_token: "REPLACE_ME",
+  apiToken: 'REPLACE_ME',
   particle: {
-    api_url: "https://api.particle.io/v1/devices/",
-    device_id: "",
-    access_token: "",
+    apiUrl: 'https://api.particle.io/v1/devices/',
+    deviceId: '',
+    accessToken: ''
   },
-  tagauthorize_host: "http://magicchef.volzfamily.net",
-  tagscan_url: "http://magicchef.volzfamily.net:3000/tagscans.json",
-  listen_addr: "127.0.0.1",
-  listen_port: "1337",
-};
+  tagauthorizeHost: 'http://magicchef.volzfamily.net',
+  tagscanUrl: 'http://magicchef.volzfamily.net:3000/tagscans.json',
+  listenAddr: '127.0.0.1',
+  listenPort: '1337'
+}
