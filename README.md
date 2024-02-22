@@ -11,4 +11,5 @@ Sends command to open garage door based on result of http get
 # Notes
 
 - Pino outputs in JSON, but you can use pino-pretty to format it:
-```node garage-authorizer.js | npx pino-pretty```
+```npm run dev```
+- Production run: ```npm start```
