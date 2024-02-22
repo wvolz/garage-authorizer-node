@@ -7,10 +7,10 @@ import config from "./config.js";
 import util from "node:util";
 
 const logger = pino({
-  prettyPrint: {
-    colorize: true,
-    translateTime: "SYS:standard",
-  },
+  // prettyPrint: {
+  //   colorize: true,
+  //   translateTime: "SYS:standard",
+  // },
 });
 
 var doorStateUpdateInProcess = 0;
@@ -18,7 +18,7 @@ var doorStateUpdateInProcess = 0;
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
 var server = net.createServer(function (socket) {
-  logger.info("client connected from ", socket.remoteAddress);
+  logger.info("client connected from %s:%s", socket.remoteAddress, socket.remotePort);
   socket.setEncoding("utf8");
   // below addresses TODO to set a timeout on connections
   // TODO does this address memory / wrong type of client?
@@ -52,7 +52,7 @@ var server = net.createServer(function (socket) {
   });
   socket.on("error", function (e) {
     // TODO how do we handle other errors?
-    logger.error("Socket error:", e.message);
+    logger.error("Socket error: %s", e.message);
   });
   socket.on("timeout", () => {
     logger.info("socket timeout");
@@ -186,7 +186,7 @@ function get_door_state(callback) {
     if (doorStateUpdateInProcess) {
       logger.info("skipped door state API call due to pending update");
     } else {
-      logger.info("get door state API call=", url);
+      logger.info("get door state API call = %s", url);
       doorStateUpdateInProcess = 1;
       // get state from particle API
       got(url)
@@ -211,7 +211,7 @@ function get_door_state(callback) {
 }
 
 function processDoorState(error, state) {
-  if (error) return logger.error("door state error", error);
+  if (error) return logger.error("door state error %s", error);
   if (state == "down") {
     logger.info("Door down, opening door");
     openDoor(error);
@@ -221,7 +221,7 @@ function processDoorState(error, state) {
 }
 
 function openDoor(error) {
-  if (error) return logger.error("ERROR", error);
+  if (error) return logger.error("ERROR %s", error);
   // TODO below should be configurable
   let api_url = config.particle.api_url;
   let device_id = config.particle.device_id;
@@ -229,7 +229,7 @@ function openDoor(error) {
 
   let url = api_url + device_id + "/door1move?access_token=" + access_token;
 
-  logger.info("openDoor API request URL = ", url);
+  logger.info("openDoor API request URL = %s", url);
 
   got
     .post(url)
@@ -250,6 +250,6 @@ server.listen(
   config.listen_port || 1337,
   config.listen_addr || "127.0.0.1",
   function () {
-    logger.info("server bound to ", server.address());
+    logger.info("server bound to %s:%s", server.address().address, server.address().port);
   },
 );

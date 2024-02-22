@@ -16,11 +16,11 @@
     "csv": "^6.3.6",
     "got": "^14.2.0",
     "memory-cache": "^0.2.0",
-    "pino": "^5.11.1",
-    "pino-pretty": "^2.5.0"
+    "pino": "^8.19.0"
   },
   "devDependencies": {
     "pre-commit": "^1.2.2",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "pino-pretty": "^10.3.1"
   }
 }
