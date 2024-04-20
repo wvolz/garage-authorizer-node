@@ -8,5 +8,10 @@ export default {
   tagauthorizeHost: 'http://magicchef.volzfamily.net',
   tagscanUrl: 'http://magicchef.volzfamily.net:3000/tagscans.json',
   listenAddr: '127.0.0.1',
-  listenPort: '1337'
+  listenPort: '1337',
+  mqtt: {
+    broker: 'mqtt://127.0.0.1',
+    doorStatusTopic: 'doorStatus',
+    doorMoveTopic: 'moveDoor'
+  }
 }

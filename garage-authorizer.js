@@ -1,17 +1,18 @@
 import net from 'node:net'
 import { parse } from 'csv-parse'
-import cache from 'memory-cache'
+import memCache from 'memory-cache'
 import got from 'got'
-import pino from 'pino'
+// import pino from 'pino'
+import { logger } from './logger.js'
 import config from './config.js'
 import util from 'node:util'
+// import { getDoorState, openDoor } from './particleDoor.js'
+import { getDoorState, openDoor } from './mqttDoor.js'
 
-const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  timestamp: process.env.LOG_TIMESTAMP !== 'false'
-})
+export const cache = memCache
 
 let doorStateUpdateInProcess = 0
+let doorState = 'down'
 
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
@@ -138,6 +139,7 @@ function authorizeTag (tag) {
 
   // check cache for key, if present skip authorization/opening
   const result = cache.get(cacheKey)
+  console.log(result)
   logger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
@@ -145,7 +147,9 @@ function authorizeTag (tag) {
   } else {
     // cache the fact that we are processing this tag
     // cache for 30 seconds
+    // TODO below needs error handling
     cache.put(cacheKey, '1', 30000)
+
     got(authorizeUrl, {
       headers: {
         Authorization: 'Bearer ' + apiToken
@@ -165,85 +169,17 @@ function authorizeTag (tag) {
   }
 }
 
-function getDoorState (callback) {
-  // check door state
-  // TODO reduce number of calls to "callback"
-  // TODO below should be configurable
-  const apiUrl = config.particle.apiUrl
-  const deviceId = config.particle.deviceId
-  const accessToken = config.particle.accessToken
-
-  const url = apiUrl + deviceId + '/doorstate?accessToken=' + accessToken
-
-  const error = ''
-  let result = 'up' // default to up?
-  const cacheKey = '__garage_authorizer__' + '/doorState'
-  // check to see if we have a cached door state to reduce API calls
-  // TODO make door state cache timeout configurable?
-  const doorStateCached = cache.get(cacheKey)
-  if (doorStateCached) {
-    logger.info('getDoorState using cached result for door state')
-    callback && callback(error, doorStateCached)
-  } else {
-    if (doorStateUpdateInProcess) {
-      logger.info('getDoorState skipped door state API call due to pending update')
-    } else {
-      logger.debug('getDoorState door state API call = %s', url)
-      doorStateUpdateInProcess = 1
-      // get state from particle API
-      got(url)
-        .json()
-        .then((apiResponse) => {
-          // default encoding is utf-8
-          logger.debug('getDoorState got door state')
-          logger.debug('getDoorState api response = ' + util.inspect(apiResponse))
-          result = apiResponse.result // error handling on this?
-          // add state to cache for 15 seconds
-          cache.put(cacheKey, result, 15000)
-          doorStateUpdateInProcess = 0
-          callback && callback(error, result)
-        })
-        .catch((error) => {
-          // logger.warn(error);
-          // Don't update door state here?
-          doorStateUpdateInProcess = 0
-          callback && callback(error, result)
-        })
-    }
-  }
-}
-
 function processDoorState (error, state) {
+  logger.debug('doorState = %s', state)
   if (error) return logger.error('processDoorState door state error %s', error)
   if (state === 'down') {
     logger.info('processDoorState door down, opening door')
     openDoor(error)
   } else {
+    // TODO: handle nonsense values here
+    console.log(state)
     logger.info('processDoorState door up, no action needed')
   }
-}
-
-function openDoor (error) {
-  if (error) return logger.error('openDoor error %s', error)
-  // TODO below should be configurable
-  const apiUrl = config.particle.apiUrl
-  const deviceId = config.particle.deviceId
-  const accessToken = config.particle.accessToken
-
-  const url = apiUrl + deviceId + '/door1move?accessToken=' + accessToken
-
-  logger.debug('openDoor API request URL = %s', url)
-
-  got
-    .post(url)
-    .json()
-    .then((apiResponse) => {
-      logger.info('openDoor success')
-      logger.debug('openDoor API response = ' + util.inspect(apiResponse))
-    })
-    .catch((error) => {
-      logger.error('openDoor error moving door = ' + error)
-    })
 }
 
 server.on('error', function (err) {
