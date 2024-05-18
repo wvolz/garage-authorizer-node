@@ -139,7 +139,7 @@ function authorizeTag (tag) {
 
   // check cache for key, if present skip authorization/opening
   const result = cache.get(cacheKey)
-  console.log(result)
+  // console.log(result)
   logger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
@@ -177,7 +177,7 @@ function processDoorState (error, state) {
     openDoor(error)
   } else {
     // TODO: handle nonsense values here
-    console.log(state)
+    // console.log(state)
     logger.info('processDoorState door up, no action needed')
   }
 }
