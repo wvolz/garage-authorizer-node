@@ -71,7 +71,11 @@ mqttClient.on('message', (topic, message, packet) => {
   // received update to subscribed door state, update variable
   logger.debug('MQTT topic: %s, message: %s', topic, message)
   if (topic === config.mqtt.doorStatusTopic) {
-    mqttDoorState = message.toString()
-    logger.info('Setting door state to: %s', mqttDoorState)
+    // check to see if the message differs from our last value
+    // filters out duplicate status
+    if (message.toString() != mqttDoorState) {
+      mqttDoorState = message.toString()
+      logger.info('Setting door state to: %s', mqttDoorState)
+    }
   }
 })
