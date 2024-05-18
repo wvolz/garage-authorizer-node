@@ -44,7 +44,7 @@ export function getDoorState (callback) {
 export function openDoor () {
   logger.debug('opening door')
 
-  mqttClient.publishAsync(config.mqtt.doorMoveTopic, 'move')
+  mqttClient.publishAsync(config.mqtt.doorMoveTopic, 'OPEN')
     .catch((err) => {
       logger.error('problem moving door: %s', err)
     })
