@@ -187,8 +187,8 @@ server.on('error', function (err) {
 })
 
 server.listen(
-  config.listen_port || 1337,
-  config.listen_addr || '127.0.0.1',
+  config.listenPort || 1337,
+  config.listenAddr || '127.0.0.1',
   function () {
     logger.info('server bound to %s:%s', server.address().address, server.address().port)
   }
