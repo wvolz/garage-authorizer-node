@@ -13,5 +13,11 @@ export default {
     broker: 'mqtt://127.0.0.1',
     doorStatusTopic: 'doorStatus',
     doorMoveTopic: 'moveDoor'
-  }
+  },
+  outboxDbPath: './outbox.db',
+  outboxPollIntervalMs: 30000,
+  outboxBase: 2,
+  outboxMaxDelay: 300,
+  outboxMaxAttempts: 50,
+  outboxAuthRetryThreshold: 3
 }

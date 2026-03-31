@@ -1,4 +1,5 @@
 import net from 'node:net'
+import { randomUUID } from 'node:crypto'
 import { parse } from 'csv-parse'
 import memCache from 'memory-cache'
 import got from 'got'
@@ -9,6 +10,8 @@ import util from 'node:util'
 // import { getDoorState, openDoor } from './particleDoor.js'
 import { getDoorState, openDoor } from './mqttDoor.js'
 import { isCommentLine, buildTagscan } from './tagProtocol.js'
+import { openDb } from './outbox.js'
+import { startWorker } from './outboxWorker.js'
 
 export const cache = memCache
 
@@ -99,31 +102,13 @@ function parseInput (data) {
 }
 
 function postTagscan (data) {
-  const dataPostUrl = config.tagscanUrl
-  const apiToken = config.apiToken
-
-  const gotOptions = {
-    json: data,
-    headers: {
-      Authorization: 'Bearer ' + apiToken
-    }
+  const eventId = randomUUID()
+  try {
+    outboxStore.enqueue(eventId, data)
+    logger.info({ event_id: eventId }, 'postTagscan enqueued')
+  } catch (err) {
+    logger.error({ err: err.message }, 'postTagscan enqueue failed')
   }
-
-  got
-    .post(
-      dataPostUrl,
-      gotOptions
-      /* ).then( (response) => {
-        // check for success here?
-    } */
-    )
-    .then((postReply) => {
-      logger.info('postTagscan completed successfully')
-      logger.debug('postTagscan reply = %s', postReply.body)
-    })
-    .catch((error) => {
-      logger.error(`Problem with post request (${error.code}): ${error}`)
-    })
 }
 
 function authorizeTag (tag) {
@@ -183,6 +168,20 @@ function processDoorState (error, state) {
 server.on('error', function (err) {
   throw err
 })
+
+// Initialise outbox before the server starts accepting connections.
+const outboxStore = openDb(config.outboxDbPath ?? './outbox.db')
+logger.info({ path: config.outboxDbPath ?? './outbox.db' }, 'outbox:opened')
+const worker = startWorker(outboxStore, config, logger)
+
+function shutdown () {
+  logger.info('shutting down')
+  worker.stop()
+  outboxStore.close()
+  process.exit(0)
+}
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
 
 server.listen(
   config.listenPort || 1337,
