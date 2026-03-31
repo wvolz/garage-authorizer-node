@@ -5,8 +5,8 @@ export default {
     deviceId: '',
     accessToken: ''
   },
-  tagauthorizeHost: 'http://magicchef.volzfamily.net',
-  tagscanUrl: 'http://magicchef.volzfamily.net:3000/tagscans.json',
+  tagauthorizeHost: 'http://localhost',
+  tagscanUrl: 'http://localhost:3000/tagscans.json',
   listenAddr: '127.0.0.1',
   listenPort: '1337',
   mqtt: {
