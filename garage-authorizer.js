@@ -8,6 +8,7 @@ import config from './config.js'
 import util from 'node:util'
 // import { getDoorState, openDoor } from './particleDoor.js'
 import { getDoorState, openDoor } from './mqttDoor.js'
+import { isCommentLine, buildTagscan } from './tagProtocol.js'
 
 export const cache = memCache
 
@@ -66,8 +67,7 @@ function parseInput (data) {
     // broken out by newlines
     const xLines = x.split('\r\n')
     xLines.forEach(function (line) {
-      const hashComment = /(#.*)/
-      if (hashComment.test(line)) {
+      if (isCommentLine(line)) {
         return
       }
       parse(line, function (err, row) {
@@ -75,21 +75,19 @@ function parseInput (data) {
         if (err) return logger.error('parseInput error %s', err)
         row.forEach(function (y) {
           logger.debug('parseInput = %s', y)
-          const tag = { tag_epc: y[0], tag_pc: y[6], antenna: y[5], rssi: y[1] }
-          const tagscan = { tagscan: tag }
+          const tagscan = buildTagscan(y)
 
-          // make sure we parsed some data
-          // TODO more detailed error checking
-          if (y.length < 7) {
-            const error = new Error('Invalid protocol input data received')
+          if (!tagscan) {
+            logger.error('Invalid protocol input data received')
+            // TODO more detailed error handling here, maybe log the bad input data?
             // TODO do we need to hangup the connection here?
             // socket.destroy(error);
           } else {
             logger.info('parseInput result %s', JSON.stringify(tagscan))
             postTagscan(tagscan)
             // filter out false readings from antenna 0
-            if (tag.antenna == 1) {
-              authorizeTag(tag.tag_epc)
+            if (tagscan.tagscan.antenna == 1) {
+              authorizeTag(tagscan.tagscan.tag_epc)
             }
             // TODO do we need to hangup the connection here?
             // socket.end();
