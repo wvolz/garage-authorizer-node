@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node ./garage-authorizer.js",
     "dev": "LOG_LEVEL=debug node ./garage-authorizer.js | npx pino-pretty",
-    "test": "node --test"
+    "test": "node --test",
+    "prepare": "husky"
   },
   "type": "module",
   "author": "Warren Volz <warren@warrenvolz.com>",
@@ -23,9 +24,16 @@
     "pino": "^8.19.0"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "pino-pretty": "^10.3.1",
-    "pre-commit": "^1.2.2",
     "prettier": "^3.2.5",
     "standard": "^17.1.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --write --ignore-unknown",
+      "standard --fix"
+    ]
   }
 }
