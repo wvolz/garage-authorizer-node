@@ -35,15 +35,17 @@ test('isCommentLine', async (t) => {
 // A representative row from the reader protocol.
 // Indices: 0=epc  1=rssi  2=? 3=? 4=? 5=antenna  6=pc
 const VALID_ROW = ['E2801160600002059B0167B6', '-55', '0', '0', '0', '1', '3400']
+const FIXED_TS = '2026-04-01T12:00:00.000Z'
 
 test('buildTagscan returns correct tagscan shape for a valid row', () => {
-  const result = buildTagscan(VALID_ROW)
+  const result = buildTagscan(VALID_ROW, FIXED_TS)
   assert.deepEqual(result, {
     tagscan: {
       tag_epc: 'E2801160600002059B0167B6',
       tag_pc: '3400',
       antenna: '1',
-      rssi: '-55'
+      rssi: '-55',
+      received_at: FIXED_TS
     }
   })
 })
@@ -51,21 +53,22 @@ test('buildTagscan returns correct tagscan shape for a valid row', () => {
 test('buildTagscan maps the correct column positions', () => {
   // Use sentinel values at each position so any swap is immediately visible.
   const row = ['EPC', 'RSSI', 'C2', 'C3', 'C4', 'ANTENNA', 'PC']
-  const { tagscan } = buildTagscan(row)
+  const { tagscan } = buildTagscan(row, FIXED_TS)
   assert.equal(tagscan.tag_epc, 'EPC', 'row[0] → tag_epc')
   assert.equal(tagscan.rssi, 'RSSI', 'row[1] → rssi')
   assert.equal(tagscan.antenna, 'ANTENNA', 'row[5] → antenna')
   assert.equal(tagscan.tag_pc, 'PC', 'row[6] → tag_pc')
+  assert.equal(tagscan.received_at, FIXED_TS, 'received_at forwarded from caller')
 })
 
 test('buildTagscan accepts a row with exactly 7 fields (minimum valid)', () => {
   const row = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-  assert.notEqual(buildTagscan(row), null)
+  assert.notEqual(buildTagscan(row, FIXED_TS), null)
 })
 
 test('buildTagscan accepts rows with more than 7 fields', () => {
   const row = [...VALID_ROW, 'extra1', 'extra2']
-  assert.deepEqual(buildTagscan(row), buildTagscan(VALID_ROW))
+  assert.deepEqual(buildTagscan(row, FIXED_TS), buildTagscan(VALID_ROW, FIXED_TS))
 })
 
 // ---------------------------------------------------------------------------

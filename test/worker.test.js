@@ -302,9 +302,15 @@ test('processOnce: transport error when retry_count >= maxAttempts → dead_lett
 // processOnce — event_id is forwarded in the request payload
 // ---------------------------------------------------------------------------
 
-test('processOnce: outgoing request body includes event_id', async () => {
+test('processOnce: outgoing request body includes tagscan.event_id and preserves received_at', async () => {
   const db = freshDb()
-  db.enqueue('my-stable-uuid', { tagscan: { tag_epc: 'XYZ' } })
+  const receivedAt = '2026-04-05T12:34:56.000Z'
+  db.enqueue('my-stable-uuid', {
+    tagscan: {
+      tag_epc: 'XYZ',
+      received_at: receivedAt
+    }
+  })
 
   let capturedPayload = null
   const spyGot = {
@@ -316,6 +322,8 @@ test('processOnce: outgoing request body includes event_id', async () => {
 
   await processOnce(db, BASE_CONFIG, silentLogger, spyGot)
 
-  assert.equal(capturedPayload?.event_id, 'my-stable-uuid')
+  assert.equal(capturedPayload?.tagscan?.event_id, 'my-stable-uuid')
+  assert.equal(capturedPayload?.event_id, undefined)
+  assert.equal(capturedPayload?.tagscan?.received_at, receivedAt)
   db.close()
 })

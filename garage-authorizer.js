@@ -78,7 +78,7 @@ function parseInput (data) {
         if (err) return logger.error('parseInput error %s', err)
         row.forEach(function (y) {
           logger.debug('parseInput = %s', y)
-          const tagscan = buildTagscan(y)
+          const tagscan = buildTagscan(y, new Date().toISOString())
 
           if (!tagscan) {
             logger.error('Invalid protocol input data received')

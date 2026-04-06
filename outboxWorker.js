@@ -65,8 +65,9 @@ export async function processOnce (db, config, logger, gotFn = got) {
 
   for (const row of rows) {
     const payload = JSON.parse(row.payload)
-    // Attach event_id to the outgoing payload for forward-compatible idempotency.
-    payload.event_id = row.event_id
+    // Attach event_id inside tagscan to match the Rails API contract.
+    payload.tagscan = payload.tagscan ?? {}
+    payload.tagscan.event_id = row.event_id
 
     let statusCode
     let responseBody
