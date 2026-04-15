@@ -19,5 +19,22 @@ export default {
   outboxBase: 2,
   outboxMaxDelay: 300,
   outboxMaxAttempts: 50,
-  outboxAuthRetryThreshold: 3
+  outboxAuthRetryThreshold: 3,
+  // Camera photo capture (Amcrest IPM-723B or compatible).
+  // Leave camera undefined (or omit) to disable photo capture entirely.
+  camera: {
+    // Amcrest snapshot endpoint — typically /cgi-bin/snapshot.cgi
+    url: 'http://CAMERA_IP/cgi-bin/snapshot.cgi',
+    username: 'REPLACE_ME',
+    password: 'REPLACE_ME',
+    timeoutMs: 5000  // camera can take hundreds of ms to respond
+  },
+  // Base URL used to construct the photo upload endpoint:
+  //   POST ${photoUploadUrlBase}/${event_id}/photo
+  photoUploadUrlBase: 'http://localhost:3000/tagscans',
+  // Directory where captured images are written before upload.
+  photosDir: './photos',
+  // Delivered photos older than this many days are purged from disk.
+  // Dead-lettered photos are retained indefinitely for manual review.
+  photoRetentionDays: 7
 }

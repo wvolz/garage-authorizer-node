@@ -1,4 +1,6 @@
 import net from 'node:net'
+import fs from 'node:fs'
+import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { parse } from 'csv-parse'
 import memCache from 'memory-cache'
@@ -12,16 +14,18 @@ import { getDoorState, openDoor } from './mqttDoor.js'
 import { isCommentLine, buildTagscan } from './tagProtocol.js'
 import { openDb } from './outbox.js'
 import { startWorker } from './outboxWorker.js'
+import { capturePhoto, createCaptureQueue } from './camera.js'
 
 export const cache = memCache
-
-let doorStateUpdateInProcess = 0
-let doorState = 'down'
 
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
 const server = net.createServer(function (socket) {
-  logger.info('client connected from %s:%s', socket.remoteAddress, socket.remotePort)
+  logger.info(
+    'client connected from %s:%s',
+    socket.remoteAddress,
+    socket.remotePort
+  )
   socket.setEncoding('utf8')
   // below addresses TODO to set a timeout on connections
   // TODO does this address memory / wrong type of client?
@@ -29,7 +33,11 @@ const server = net.createServer(function (socket) {
   socket.setTimeout(3000)
   let data = ''
   socket.on('end', function () {
-    logger.info('client %s:%s disconnected', socket.remoteAddress, socket.remotePort)
+    logger.info(
+      'client %s:%s disconnected',
+      socket.remoteAddress,
+      socket.remotePort
+    )
   })
   socket.on('data', function (chunk) {
     // logger.debug(data);
@@ -87,9 +95,11 @@ function parseInput (data) {
             // socket.destroy(error);
           } else {
             logger.info('parseInput result %s', JSON.stringify(tagscan))
-            postTagscan(tagscan)
+            const eventId = randomUUID()
+            postTagscan(eventId, tagscan)
+            captureAndEnqueuePhoto(eventId)
             // filter out false readings from antenna 0
-            if (tagscan.tagscan.antenna == 1) {
+            if (tagscan.tagscan.antenna === 1) {
               authorizeTag(tagscan.tagscan.tag_epc)
             }
             // TODO do we need to hangup the connection here?
@@ -101,8 +111,7 @@ function parseInput (data) {
   })
 }
 
-function postTagscan (data) {
-  const eventId = randomUUID()
+function postTagscan (eventId, data) {
   try {
     outboxStore.enqueue(eventId, data)
     logger.info({ event_id: eventId }, 'postTagscan enqueued')
@@ -115,8 +124,7 @@ function authorizeTag (tag) {
   // note in line below a= is the authorization ie: garage = 1
   // http://localhost:3000/tags/1234566ef/authorize.json?a=1
   const tagauthorizeHost = config.tagauthorizeHost
-  const authorizeUrl =
-    tagauthorizeHost + '/tags/' + tag + '/authorize.json?a=1'
+  const authorizeUrl = tagauthorizeHost + '/tags/' + tag + '/authorize.json?a=1'
   const apiToken = config.apiToken
   const cacheKey = '__garage_authorizer__' + '/authorizing/' + tag
 
@@ -126,7 +134,9 @@ function authorizeTag (tag) {
   logger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
-    logger.info('authorizeTag skipping authorization for ' + tag + ' due to cache hit!')
+    logger.info(
+      'authorizeTag skipping authorization for ' + tag + ' due to cache hit!'
+    )
   } else {
     // cache the fact that we are processing this tag
     // cache for 30 seconds
@@ -147,7 +157,9 @@ function authorizeTag (tag) {
         }
       })
       .catch((error) => {
-        logger.error('authorizeTag authorization error (' + error.code + '): ' + error)
+        logger.error(
+          'authorizeTag authorization error (' + error.code + '): ' + error
+        )
       })
   }
 }
@@ -174,6 +186,34 @@ const outboxStore = openDb(config.outboxDbPath ?? './outbox.db')
 logger.info({ path: config.outboxDbPath ?? './outbox.db' }, 'outbox:opened')
 const worker = startWorker(outboxStore, config, logger)
 
+// Set up photo capture if a camera is configured.
+const captureQueue = createCaptureQueue()
+const photosDir = config.camera?.url
+  ? path.resolve(config.photosDir ?? './photos')
+  : null
+if (photosDir) {
+  fs.mkdirSync(photosDir, { recursive: true })
+  logger.info({ photosDir }, 'photos:dir')
+}
+
+async function captureAndEnqueuePhoto (eventId) {
+  if (!photosDir) return
+  captureQueue.enqueue(async () => {
+    const filePath = path.join(photosDir, `${eventId}.jpg`)
+    try {
+      const { data, contentType } = await capturePhoto(config.camera)
+      await fs.promises.writeFile(filePath, data)
+      outboxStore.enqueuePhoto(eventId, filePath, contentType)
+      logger.info({ event_id: eventId, filePath }, 'photo:captured')
+    } catch (err) {
+      logger.warn(
+        { event_id: eventId, err: err.message },
+        'photo:capture_failed'
+      )
+    }
+  })
+}
+
 function shutdown () {
   logger.info('shutting down')
   worker.stop()
@@ -187,6 +227,10 @@ server.listen(
   config.listenPort || 1337,
   config.listenAddr || '127.0.0.1',
   function () {
-    logger.info('server bound to %s:%s', server.address().address, server.address().port)
+    logger.info(
+      'server bound to %s:%s',
+      server.address().address,
+      server.address().port
+    )
   }
 )
