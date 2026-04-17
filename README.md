@@ -62,3 +62,9 @@ Uses Node's built-in `node:test` runner — no extra dependencies.
 ```npm run dev```
 - Production run: ```npm start```
 - suggest using 'jq' for parsing of output json from production
+- Tag format from ALR-9650 (currently supported reader)
+   - Using a TagStream custom format: ${TAGID},${RSSI},${TIME1},${TIME2},${TX},${RX},${PCWORD}
+   - ${TIME1} = Discovery time of tag, in format hh:mm:ss
+   - ${TIME2} = Last-seen time of tag, in format hh:mm:ss
+   - ${TX} = TX antenna tag last seen on
+   - ${RX} = RX antenna where tag was last seen
