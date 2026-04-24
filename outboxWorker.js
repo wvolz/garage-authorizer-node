@@ -233,17 +233,24 @@ export async function processPhotosOnce (db, config, logger, gotFn = got) {
       continue
     }
 
-    const outcome = classifyResponse(
-      statusCode,
-      row.retry_count,
-      authThreshold,
-      maxAttempts
-    )
+    // A 404 means the tagscan hasn't been delivered to Rails yet — treat it as
+    // a transient timing issue and retry, not a permanent hard failure.
+    const photoOutcome =
+      statusCode === 404
+        ? row.retry_count >= maxAttempts
+          ? 'dead_letter'
+          : 'retry_wait'
+        : classifyResponse(
+          statusCode,
+          row.retry_count,
+          authThreshold,
+          maxAttempts
+        )
 
-    if (outcome === 'delivered') {
+    if (photoOutcome === 'delivered') {
       db.markPhotoDelivered(row.id)
       logger.info({ event_id: row.event_id, statusCode }, 'photo:delivered')
-    } else if (outcome === 'retry_wait') {
+    } else if (photoOutcome === 'retry_wait') {
       const next = computeNextAttemptAt(row.retry_count + 1, base, maxDelay)
       db.markPhotoRetryWait(row.id, next, `HTTP ${statusCode}`)
       logger.warn(
