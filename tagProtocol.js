@@ -5,10 +5,54 @@
 
 /**
  * Returns true if the line should be skipped as a comment.
- * The reader protocol treats any line containing '#' as a comment.
+ * The reader protocol uses lines starting with '#' for metadata headers.
  */
 export function isCommentLine (line) {
-  return /(#.*)/.test(line)
+  return /^\s*#/.test(line ?? '')
+}
+
+/**
+ * Normalizes MAC addresses to uppercase colon-separated format.
+ * Accepts values with or without separators.
+ */
+export function normalizeMacAddress (value) {
+  if (!value) return null
+
+  const cleaned = String(value)
+    .trim()
+    .toUpperCase()
+    .replace(/[^0-9A-F]/g, '')
+  if (cleaned.length !== 12) return null
+
+  return cleaned.match(/.{1,2}/g).join(':')
+}
+
+/**
+ * Parse a potential header block from reader protocol lines.
+ * Returns parsed keys and a boolean indicating whether this looks like a
+ * header block. A non-header banner line (without ':') is tolerated.
+ */
+export function parseHeader (lines) {
+  const parsed = {}
+
+  for (const rawLine of lines ?? []) {
+    const line = String(rawLine).trim().replace(/^#\s*/, '')
+    const match = line.match(/^([A-Za-z0-9_]+)\s*:\s*(.*)$/)
+    if (!match) continue
+    parsed[match[1]] = match[2].trim()
+  }
+
+  const mac = normalizeMacAddress(parsed.MACAddress)
+  const readerName = parsed.ReaderName
+  const hostname = parsed.Hostname
+  const isHeader = Boolean(mac || readerName || hostname)
+
+  return {
+    isHeader,
+    mac,
+    readerName,
+    hostname
+  }
 }
 
 /**

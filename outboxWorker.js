@@ -321,7 +321,7 @@ export function startWorker (db, config, logger, gotFn = got) {
   let timer = null
   let running = true
 
-  const cameraConfigured = !!config.camera?.url
+  const cameraConfigured = Object.keys(config.cameras ?? {}).length > 0
 
   async function tick () {
     if (!running) return

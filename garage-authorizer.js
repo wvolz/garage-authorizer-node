@@ -11,16 +11,43 @@ import config from './config.js'
 import util from 'node:util'
 // import { getDoorState, openDoor } from './particleDoor.js'
 import { getDoorState, openDoor } from './mqttDoor.js'
-import { isCommentLine, buildTagscan } from './tagProtocol.js'
+import {
+  isCommentLine,
+  buildTagscan,
+  parseHeader,
+  normalizeMacAddress
+} from './tagProtocol.js'
+import {
+  buildAuthorizeUrl,
+  authorizationCacheKey,
+  resolveAuthorizationAction
+} from './authFlow.js'
+import { applyHeaderToSession } from './sessionState.js'
 import { openDb } from './outbox.js'
 import { startWorker } from './outboxWorker.js'
 import { capturePhoto, createCaptureQueue } from './camera.js'
 
 export const cache = memCache
 
+const readerConfigByMac = new Map(
+  Object.entries(config.readers ?? {}).map(([rawMac, readerConfig]) => {
+    const normalized = normalizeMacAddress(rawMac)
+    return [normalized ?? String(rawMac).toUpperCase(), readerConfig]
+  })
+)
+
 // TODO: need to make address for auth server configurable
 // TODO: what happens when multiple clients connect and send data?
 const server = net.createServer(function (socket) {
+  const session = {
+    buffer: '',
+    mac: null,
+    readerName: null,
+    hostname: null,
+    readerConfig: null,
+    sourceIp: socket.remoteAddress
+  }
+
   logger.info(
     'client connected from %s:%s',
     socket.remoteAddress,
@@ -31,7 +58,6 @@ const server = net.createServer(function (socket) {
   // TODO does this address memory / wrong type of client?
   // think web broswer that reconnects over and over
   socket.setTimeout(3000)
-  let data = ''
   socket.on('end', function () {
     logger.info(
       'client %s:%s disconnected',
@@ -40,25 +66,23 @@ const server = net.createServer(function (socket) {
     )
   })
   socket.on('data', function (chunk) {
-    // logger.debug(data);
-    data += chunk
+    session.buffer += chunk
     // look for NUL to indicate a complete set of data
     // from the reader/end of message from the reader
     // TODO need to timeout connection to avoid using up
     // memory due to connection that never closes + no
     // NUL terminators found
-    let dIndex = data.indexOf('\0')
+    let dIndex = session.buffer.indexOf('\0')
     while (dIndex > -1) {
       try {
-        const string = data.substring(0, dIndex)
-        // call process function here
-        parseInput(string)
-        logger.info('Nul terminated input=' + string)
+        const block = session.buffer.substring(0, dIndex)
+        handleBlock(block, session, socket)
+        logger.info('Nul terminated input=%s', block)
       } catch (error) {
         logger.error('Inbound data parse error: ' + error)
       }
-      data = data.substring(dIndex + 1)
-      dIndex = data.indexOf('\0') // find next delimiter in buffer
+      session.buffer = session.buffer.substring(dIndex + 1)
+      dIndex = session.buffer.indexOf('\0') // find next delimiter in buffer
     }
   })
   socket.on('error', function (e) {
@@ -71,44 +95,102 @@ const server = net.createServer(function (socket) {
   })
 })
 
-function parseInput (data) {
-  // end of message = \0 \u0000 or NUL
-  const inData = data.split('\0')
-  inData.forEach(function (x) {
-    // broken out by newlines
-    const xLines = x.split('\r\n')
-    xLines.forEach(function (line) {
-      if (isCommentLine(line)) {
+function handleBlock (block, session, socket) {
+  const lines = block
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  if (lines.length === 0) return
+
+  const parsedHeader = parseHeader(lines)
+  if (parsedHeader.isHeader) {
+    handleHeader(parsedHeader, session, socket)
+    return
+  }
+
+  if (!session.mac) {
+    logger.warn('Ignoring tag data block before MAC header was established')
+    return
+  }
+
+  lines.forEach((line) => {
+    if (isCommentLine(line)) return
+    parseDataLine(line, session)
+  })
+}
+
+function handleHeader (parsedHeader, session, socket) {
+  const result = applyHeaderToSession(session, parsedHeader, readerConfigByMac)
+  if (!result.ok) {
+    if (result.reason === 'missing_mac') {
+      logger.warn('Header block missing MACAddress; skipping block')
+      return
+    }
+    logger.error({ mac: result.mac }, 'unknown_or_unconfigured_reader')
+    socket.destroy()
+    return
+  }
+
+  logger.info(
+    {
+      mac: session.mac,
+      readerName: session.readerName,
+      hostname: session.hostname
+    },
+    'reader_header_established'
+  )
+}
+
+function parseDataLine (line, session) {
+  parse(line, function (err, row) {
+    if (err) return logger.error('parseInput error %s', err)
+
+    row.forEach(function (parsedRow) {
+      logger.debug('parseInput = %s', parsedRow)
+      const tagscan = buildTagscan(parsedRow, new Date().toISOString())
+
+      if (!tagscan) {
+        logger.error('Invalid protocol input data received')
         return
       }
-      parse(line, function (err, row) {
-        // logger.debug(row);
-        if (err) return logger.error('parseInput error %s', err)
-        row.forEach(function (y) {
-          logger.debug('parseInput = %s', y)
-          const tagscan = buildTagscan(y, new Date().toISOString())
 
-          if (!tagscan) {
-            logger.error('Invalid protocol input data received')
-            // TODO more detailed error handling here, maybe log the bad input data?
-            // TODO do we need to hangup the connection here?
-            // socket.destroy(error);
-          } else {
-            logger.info('parseInput result %s', JSON.stringify(tagscan))
-            const eventId = randomUUID()
-            postTagscan(eventId, tagscan)
-            captureAndEnqueuePhoto(eventId)
-            // filter out false readings from antenna 0
-            if (tagscan.tagscan.antenna === 1) {
-              authorizeTag(tagscan.tagscan.tag_epc)
-            }
-            // TODO do we need to hangup the connection here?
-            // socket.end();
-          }
-        })
-      })
+      tagscan.tagscan.mac = session.mac
+      tagscan.tagscan.source_ip = session.sourceIp
+      if (session.readerName) tagscan.tagscan.reader_name = session.readerName
+      if (session.hostname) tagscan.tagscan.hostname = session.hostname
+
+      logger.info('parseInput result %s', JSON.stringify(tagscan))
+      const eventId = randomUUID()
+      postTagscan(eventId, tagscan)
+
+      const antenna = Number(tagscan.tagscan.antenna)
+      const doorConfig = resolveDoorConfig(session.readerConfig, antenna)
+      const cameraConfig = resolveCameraConfig(session.readerConfig, antenna)
+      captureAndEnqueuePhoto(eventId, cameraConfig)
+      authorizeTag(tagscan.tagscan.tag_epc, session.mac, antenna, doorConfig)
     })
   })
+}
+
+function resolveDoorConfig (readerConfig, antenna) {
+  if (!readerConfig?.antennas) return null
+
+  return (
+    readerConfig.antennas[antenna] ??
+    readerConfig.antennas[String(antenna)] ??
+    null
+  )
+}
+
+function resolveCameraConfig (readerConfig, antenna) {
+  const antennaConfig =
+    readerConfig?.antennas?.[antenna] ??
+    readerConfig?.antennas?.[String(antenna)]
+  const cameraName = antennaConfig?.camera
+  if (!cameraName) return null
+
+  return config.cameras?.[cameraName] ?? null
 }
 
 function postTagscan (eventId, data) {
@@ -120,22 +202,26 @@ function postTagscan (eventId, data) {
   }
 }
 
-function authorizeTag (tag) {
-  // note in line below a= is the authorization ie: garage = 1
-  // http://localhost:3000/tags/1234566ef/authorize.json?a=1
+function authorizeTag (tag, mac, antenna, doorConfig) {
+  if (!mac || Number.isNaN(antenna)) {
+    logger.warn({ tag, mac, antenna }, 'authorizeTag missing required context')
+    return
+  }
+
   const tagauthorizeHost = config.tagauthorizeHost
-  const authorizeUrl = tagauthorizeHost + '/tags/' + tag + '/authorize.json?a=1'
+  const authorizeUrl = buildAuthorizeUrl(tagauthorizeHost, tag, mac, antenna)
   const apiToken = config.apiToken
-  const cacheKey = '__garage_authorizer__' + '/authorizing/' + tag
+  const cacheKey = authorizationCacheKey(mac, tag)
 
   // check cache for key, if present skip authorization/opening
   const result = cache.get(cacheKey)
-  // console.log(result)
   logger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
     logger.info(
-      'authorizeTag skipping authorization for ' + tag + ' due to cache hit!'
+      'authorizeTag skipping authorization for %s (%s) due to cache hit!',
+      tag,
+      mac
     )
   } else {
     // cache the fact that we are processing this tag
@@ -151,9 +237,39 @@ function authorizeTag (tag) {
       .json()
       .then((authReply) => {
         logger.debug('authorizeTag auth reply = ' + util.inspect(authReply))
-        if (authReply.response === 'authorized') {
-          getDoorState(processDoorState)
-          logger.info('authorizeTag ' + tag + ' authorized')
+        const action = resolveAuthorizationAction(
+          authReply.response,
+          doorConfig
+        )
+        if (action === 'open_door') {
+          getDoorState(doorConfig, (error, state) =>
+            processDoorState(error, state, doorConfig)
+          )
+          logger.info(
+            'authorizeTag %s authorized for %s antenna %s',
+            tag,
+            mac,
+            antenna
+          )
+        } else if (action === 'misconfigured') {
+          logger.warn(
+            { mac, antenna, tag },
+            'authorized_but_no_door_config_for_antenna'
+          )
+        } else if (action === 'record_only') {
+          logger.info(
+            'authorizeTag record_only for %s on %s antenna %s',
+            tag,
+            mac,
+            antenna
+          )
+        } else {
+          logger.info(
+            'authorizeTag %s denied for %s antenna %s',
+            tag,
+            mac,
+            antenna
+          )
         }
       })
       .catch((error) => {
@@ -164,12 +280,12 @@ function authorizeTag (tag) {
   }
 }
 
-function processDoorState (error, state) {
+function processDoorState (error, state, doorConfig) {
   logger.debug('doorState = %s', state)
   if (error) return logger.error('processDoorState door state error %s', error)
   if (state === 'down') {
     logger.info('processDoorState door down, opening door')
-    openDoor(error)
+    openDoor(doorConfig)
   } else {
     // TODO: handle nonsense values here
     // console.log(state)
@@ -186,22 +302,23 @@ const outboxStore = openDb(config.outboxDbPath ?? './outbox.db')
 logger.info({ path: config.outboxDbPath ?? './outbox.db' }, 'outbox:opened')
 const worker = startWorker(outboxStore, config, logger)
 
-// Set up photo capture if a camera is configured.
+// Set up photo capture if any cameras are configured.
 const captureQueue = createCaptureQueue()
-const photosDir = config.camera?.url
-  ? path.resolve(config.photosDir ?? './photos')
-  : null
+const photosDir =
+  Object.keys(config.cameras ?? {}).length > 0
+    ? path.resolve(config.photosDir ?? './photos')
+    : null
 if (photosDir) {
   fs.mkdirSync(photosDir, { recursive: true })
   logger.info({ photosDir }, 'photos:dir')
 }
 
-async function captureAndEnqueuePhoto (eventId) {
-  if (!photosDir) return
+async function captureAndEnqueuePhoto (eventId, cameraConfig) {
+  if (!photosDir || !cameraConfig) return
   captureQueue.enqueue(async () => {
     const filePath = path.join(photosDir, `${eventId}.jpg`)
     try {
-      const { data, contentType } = await capturePhoto(config.camera)
+      const { data, contentType } = await capturePhoto(cameraConfig)
       await fs.promises.writeFile(filePath, data)
       outboxStore.enqueuePhoto(eventId, filePath, contentType)
       logger.info({ event_id: eventId, filePath }, 'photo:captured')

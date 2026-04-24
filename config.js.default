@@ -10,9 +10,7 @@ export default {
   listenAddr: '127.0.0.1',
   listenPort: '1337',
   mqtt: {
-    broker: 'mqtt://127.0.0.1',
-    doorStatusTopic: 'doorStatus',
-    doorMoveTopic: 'moveDoor'
+    broker: 'mqtt://127.0.0.1'
   },
   outboxDbPath: './outbox.db',
   outboxPollIntervalMs: 30000,
@@ -21,13 +19,16 @@ export default {
   outboxMaxAttempts: 50,
   outboxAuthRetryThreshold: 3,
   // Camera photo capture (Amcrest IPM-723B or compatible).
-  // Leave camera undefined (or omit) to disable photo capture entirely.
-  camera: {
-    // Amcrest snapshot endpoint — typically /cgi-bin/snapshot.cgi
-    url: 'http://CAMERA_IP/cgi-bin/snapshot.cgi',
-    username: 'REPLACE_ME',
-    password: 'REPLACE_ME',
-    timeoutMs: 5000  // camera can take hundreds of ms to respond
+  // Named cameras — each antenna references a camera by name (see readers below).
+  // Omit (or leave empty) to disable photo capture entirely.
+  cameras: {
+    // 'front-cam': {
+    //   // Amcrest snapshot endpoint — typically /cgi-bin/snapshot.cgi
+    //   url: 'http://CAMERA_IP/cgi-bin/snapshot.cgi',
+    //   username: 'REPLACE_ME',
+    //   password: 'REPLACE_ME',
+    //   timeoutMs: 5000  // camera can take hundreds of ms to respond
+    // }
   },
   // Base URL used to construct the photo upload endpoint:
   //   POST ${photoUploadUrlBase}/${event_id}/photo
@@ -36,5 +37,24 @@ export default {
   photosDir: './photos',
   // Delivered photos older than this many days are purged from disk.
   // Dead-lettered photos are retained indefinitely for manual review.
-  photoRetentionDays: 7
+  photoRetentionDays: 7,
+  // Per-reader door driver configuration.
+  // Keyed by MAC address (printed on the hardware label; also stored in Rails under the Reader record).
+  // Using the MAC as the key means Node can look up door config immediately from the reader header
+  // without any Rails API call. MACs must be uppercase colon-separated (e.g. 00:DE:AD:BE:EF:11)
+  // to match what the Alien reader sends in the #MACAddress header.
+  //
+  // Each reader entry has an `antennas` map keyed by antenna number.
+  // Antennas that can open a door need an entry here — omitting an antenna means
+  // no door action will ever be triggered for that antenna, even if Rails returns "authorized".
+  // Capture-only antennas (Rails returns "record_only") still need an entry here if you
+  // want photos captured for them — set `camera` but omit the door topic fields.
+  readers: {
+    // '00:DE:AD:BE:EF:11': {
+    //   antennas: {
+    //     1: { driver: 'mqtt', doorMoveTopic: 'garage/moveDoor', doorStatusTopic: 'garage/doorStatus', camera: 'front-cam' },
+    //     2: { driver: 'mqtt', doorMoveTopic: 'door2/moveDoor',  doorStatusTopic: 'door2/doorStatus' }
+    //   }
+    // }
+  }
 }
