@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.github
+.husky
+.vscode
+*.db
+*.db-shm
+*.db-wal
+photos
+state
+config.js
+test
+reader_sample_data*.txt

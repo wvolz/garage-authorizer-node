@@ -41,6 +41,95 @@ mise exec -- npm test
 
 Uses Node's built-in `node:test` runner — no extra dependencies.
 
+# Production Docker Deployment
+
+This repository includes a production container build and compose setup.
+
+## Included files
+
+- `Dockerfile` (production image)
+- `docker-compose.prod.yml` (single-service production compose file)
+- `docker/entrypoint.sh` (startup checks + state directory creation)
+- `scripts/docker/build.sh`
+- `scripts/docker/up.sh`
+- `scripts/docker/down.sh`
+- `scripts/docker/logs.sh`
+- `config.js.docker.default` (Docker-friendly config template)
+- `.env.production.example` (production env template for compose/image/runtime overrides)
+
+## 1) Prepare config
+
+Create `config.js` from `config.js.docker.default` and fill in your environment values:
+
+```sh
+cp config.js.docker.default config.js
+```
+
+Important defaults in the Docker template:
+
+- `listenAddr: '0.0.0.0'` (required so container port publishing works)
+- `outboxDbPath: './state/outbox.db'`
+- `photosDir: './state/photos'`
+
+## 2) Prepare production env file (optional, recommended)
+
+Create `.env.production` from the template:
+
+```sh
+cp .env.production.example .env.production
+```
+
+Set values such as:
+
+- `IMAGE_NAME`
+- `IMAGE_TAG`
+- `CONTAINER_NAME`
+- `LISTEN_PORT`
+- `LOG_LEVEL`
+- `LOG_TIMESTAMP`
+
+The Docker helper scripts automatically use `.env.production` when present.
+
+## 3) Build and run
+
+Using npm scripts:
+
+```sh
+npm run docker:build
+npm run docker:up
+```
+
+Or directly:
+
+```sh
+./scripts/docker/build.sh
+./scripts/docker/up.sh
+```
+
+## 3) Operate
+
+Tail logs:
+
+```sh
+npm run docker:logs
+```
+
+Stop service:
+
+```sh
+npm run docker:down
+```
+
+## 4) Persistence
+
+Compose mounts `./state` into `/app/state` so the outbox DB and photos survive container restarts and image updates.
+
+## 5) Runtime expectations
+
+- `config.js` is mounted read-only to `/app/config.js`.
+- Service listens on TCP port `1337` by default (`LISTEN_PORT` can override published host port).
+- Restart policy is `unless-stopped`.
+
 **Integration / manual testing:**
 
 1. Setup / run test install of [tag-manager-rails](https://github.com/wvolz/tag-manager-rails)

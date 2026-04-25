@@ -1,0 +1,17 @@
+services:
+  garage-authorizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_NAME:-garage-authorizer-node}:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-garage-authorizer}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_TIMESTAMP: ${LOG_TIMESTAMP:-false}
+    ports:
+      - "${LISTEN_PORT:-1337}:1337"
+    volumes:
+      - ./config.js:/app/config.js:ro
+      - ./state:/app/state

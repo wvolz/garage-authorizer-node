@@ -1,0 +1,11 @@
+import defaultConfig from './config.js.default'
+
+export default {
+  ...defaultConfig,
+  // Required for Docker port publishing to work.
+  listenAddr: '0.0.0.0',
+
+  // Persist these paths through the compose volume mount.
+  outboxDbPath: './state/outbox.db',
+  photosDir: './state/photos'
+}
