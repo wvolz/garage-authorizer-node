@@ -7,11 +7,17 @@ WORKDIR /app
 
 # tini ensures proper signal handling (clean shutdown on SIGTERM/SIGINT)
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tini \
+  && apt-get install -y --no-install-recommends \
+    g++ \
+    make \
+    python3 \
+    tini \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts \
+  && npm rebuild better-sqlite3 --build-from-source \
+  && npm cache clean --force
 
 COPY . .
 COPY docker/entrypoint.sh /usr/local/bin/docker-entrypoint.sh
