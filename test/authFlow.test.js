@@ -20,11 +20,18 @@ test('buildAuthorizeUrl includes mac and antenna query params', () => {
   )
 })
 
-test('authorizationCacheKey is reader-scoped', () => {
-  const key = authorizationCacheKey('00:DE:AD:BE:EF:11', 'E000...')
+test('authorizationCacheKey is reader and antenna scoped', () => {
+  const key = authorizationCacheKey('00:DE:AD:BE:EF:11', 1, 'E000...')
   assert.equal(
     key,
-    '__garage_authorizer__/authorizing/00:DE:AD:BE:EF:11/E000...'
+    '__garage_authorizer__/authorizing/00:DE:AD:BE:EF:11/1/E000...'
+  )
+})
+
+test('authorizationCacheKey differs across antennas on the same reader', () => {
+  assert.notEqual(
+    authorizationCacheKey('00:DE:AD:BE:EF:11', 0, 'E000...'),
+    authorizationCacheKey('00:DE:AD:BE:EF:11', 1, 'E000...')
   )
 })
 

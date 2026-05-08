@@ -211,7 +211,7 @@ function authorizeTag (tag, mac, antenna, doorConfig) {
   const tagauthorizeHost = config.tagauthorizeHost
   const authorizeUrl = buildAuthorizeUrl(tagauthorizeHost, tag, mac, antenna)
   const apiToken = config.apiToken
-  const cacheKey = authorizationCacheKey(mac, tag)
+  const cacheKey = authorizationCacheKey(mac, antenna, tag)
 
   // check cache for key, if present skip authorization/opening
   const result = cache.get(cacheKey)

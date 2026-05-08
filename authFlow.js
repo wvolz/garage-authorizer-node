@@ -6,8 +6,8 @@ export function buildAuthorizeUrl (tagauthorizeHost, tag, mac, antenna) {
   return `${tagauthorizeHost}/tags/${encodeURIComponent(tag)}/authorize.json?${query.toString()}`
 }
 
-export function authorizationCacheKey (mac, tag) {
-  return `__garage_authorizer__/authorizing/${mac}/${tag}`
+export function authorizationCacheKey (mac, antenna, tag) {
+  return `__garage_authorizer__/authorizing/${mac}/${antenna}/${tag}`
 }
 
 export function resolveAuthorizationAction (response, doorConfig) {
