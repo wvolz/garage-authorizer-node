@@ -147,11 +147,14 @@ function parseDataLine (line, session) {
     if (err) return logger.error('parseInput error %s', err)
 
     row.forEach(function (parsedRow) {
-      logger.debug('parseInput = %s', parsedRow)
+      const eventId = randomUUID()
+      const eventLogger = logger.child({ event_id: eventId })
+
+      eventLogger.debug('parseInput = %s', parsedRow)
       const tagscan = buildTagscan(parsedRow, new Date().toISOString())
 
       if (!tagscan) {
-        logger.error('Invalid protocol input data received')
+        eventLogger.error('Invalid protocol input data received')
         return
       }
 
@@ -160,15 +163,20 @@ function parseDataLine (line, session) {
       if (session.readerName) tagscan.tagscan.reader_name = session.readerName
       if (session.hostname) tagscan.tagscan.hostname = session.hostname
 
-      logger.info('parseInput result %s', JSON.stringify(tagscan))
-      const eventId = randomUUID()
-      postTagscan(eventId, tagscan)
+      eventLogger.info('parseInput result %s', JSON.stringify(tagscan))
+      postTagscan(eventId, tagscan, eventLogger)
 
       const antenna = Number(tagscan.tagscan.antenna)
       const doorConfig = resolveDoorConfig(session.readerConfig, antenna)
       const cameraConfig = resolveCameraConfig(session.readerConfig, antenna)
-      captureAndEnqueuePhoto(eventId, cameraConfig)
-      authorizeTag(tagscan.tagscan.tag_epc, session.mac, antenna, doorConfig)
+      captureAndEnqueuePhoto(eventId, cameraConfig, eventLogger)
+      authorizeTag(
+        tagscan.tagscan.tag_epc,
+        session.mac,
+        antenna,
+        doorConfig,
+        eventLogger
+      )
     })
   })
 }
@@ -193,18 +201,21 @@ function resolveCameraConfig (readerConfig, antenna) {
   return config.cameras?.[cameraName] ?? null
 }
 
-function postTagscan (eventId, data) {
+function postTagscan (eventId, data, eventLogger = logger) {
   try {
     outboxStore.enqueue(eventId, data)
-    logger.info({ event_id: eventId }, 'postTagscan enqueued')
+    eventLogger.info('postTagscan enqueued')
   } catch (err) {
-    logger.error({ err: err.message }, 'postTagscan enqueue failed')
+    eventLogger.error({ err: err.message }, 'postTagscan enqueue failed')
   }
 }
 
-function authorizeTag (tag, mac, antenna, doorConfig) {
+function authorizeTag (tag, mac, antenna, doorConfig, eventLogger = logger) {
   if (!mac || Number.isNaN(antenna)) {
-    logger.warn({ tag, mac, antenna }, 'authorizeTag missing required context')
+    eventLogger.warn(
+      { tag, mac, antenna },
+      'authorizeTag missing required context'
+    )
     return
   }
 
@@ -215,10 +226,10 @@ function authorizeTag (tag, mac, antenna, doorConfig) {
 
   // check cache for key, if present skip authorization/opening
   const result = cache.get(cacheKey)
-  logger.info('authorizeTag in process')
+  eventLogger.info('authorizeTag in process')
   if (result) {
     // value cached so we can assume we don't have to do anything
-    logger.info(
+    eventLogger.info(
       'authorizeTag skipping authorization for %s (%s) due to cache hit!',
       tag,
       mac
@@ -236,35 +247,40 @@ function authorizeTag (tag, mac, antenna, doorConfig) {
     })
       .json()
       .then((authReply) => {
-        logger.debug('authorizeTag auth reply = ' + util.inspect(authReply))
+        eventLogger.debug(
+          'authorizeTag auth reply = ' + util.inspect(authReply)
+        )
         const action = resolveAuthorizationAction(
           authReply.response,
           doorConfig
         )
         if (action === 'open_door') {
-          getDoorState(doorConfig, (error, state) =>
-            processDoorState(error, state, doorConfig)
+          getDoorState(
+            doorConfig,
+            (error, state) =>
+              processDoorState(error, state, doorConfig, eventLogger),
+            eventLogger
           )
-          logger.info(
+          eventLogger.info(
             'authorizeTag %s authorized for %s antenna %s',
             tag,
             mac,
             antenna
           )
         } else if (action === 'misconfigured') {
-          logger.warn(
+          eventLogger.warn(
             { mac, antenna, tag },
             'authorized_but_no_door_config_for_antenna'
           )
         } else if (action === 'record_only') {
-          logger.info(
+          eventLogger.info(
             'authorizeTag record_only for %s on %s antenna %s',
             tag,
             mac,
             antenna
           )
         } else {
-          logger.info(
+          eventLogger.info(
             'authorizeTag %s denied for %s antenna %s',
             tag,
             mac,
@@ -273,23 +289,25 @@ function authorizeTag (tag, mac, antenna, doorConfig) {
         }
       })
       .catch((error) => {
-        logger.error(
+        eventLogger.error(
           'authorizeTag authorization error (' + error.code + '): ' + error
         )
       })
   }
 }
 
-function processDoorState (error, state, doorConfig) {
-  logger.debug('doorState = %s', state)
-  if (error) return logger.error('processDoorState door state error %s', error)
+function processDoorState (error, state, doorConfig, eventLogger = logger) {
+  eventLogger.debug('doorState = %s', state)
+  if (error) {
+    return eventLogger.error('processDoorState door state error %s', error)
+  }
   if (state === 'down') {
-    logger.info('processDoorState door down, opening door')
-    openDoor(doorConfig)
+    eventLogger.info('processDoorState door down, opening door')
+    openDoor(doorConfig, eventLogger)
   } else {
     // TODO: handle nonsense values here
     // console.log(state)
-    logger.info('processDoorState door up, no action needed')
+    eventLogger.info('processDoorState door up, no action needed')
   }
 }
 
@@ -313,7 +331,11 @@ if (photosDir) {
   logger.info({ photosDir }, 'photos:dir')
 }
 
-async function captureAndEnqueuePhoto (eventId, cameraConfig) {
+async function captureAndEnqueuePhoto (
+  eventId,
+  cameraConfig,
+  eventLogger = logger
+) {
   if (!photosDir || !cameraConfig) return
   captureQueue.enqueue(async () => {
     const filePath = path.join(photosDir, `${eventId}.jpg`)
@@ -321,12 +343,9 @@ async function captureAndEnqueuePhoto (eventId, cameraConfig) {
       const { data, contentType } = await capturePhoto(cameraConfig)
       await fs.promises.writeFile(filePath, data)
       outboxStore.enqueuePhoto(eventId, filePath, contentType)
-      logger.info({ event_id: eventId, filePath }, 'photo:captured')
+      eventLogger.info({ filePath }, 'photo:captured')
     } catch (err) {
-      logger.warn(
-        { event_id: eventId, err: err.message },
-        'photo:capture_failed'
-      )
+      eventLogger.warn({ err: err.message }, 'photo:capture_failed')
     }
   })
 }

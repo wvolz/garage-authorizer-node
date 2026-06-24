@@ -54,7 +54,7 @@ function ensureSubscribed (doorStatusTopic) {
     })
 }
 
-export function getDoorState (doorConfig, callback) {
+export function getDoorState (doorConfig, callback, log = logger) {
   const error = ''
   const doorStatusTopic = doorConfig?.doorStatusTopic
   if (!doorStatusTopic) {
@@ -69,16 +69,16 @@ export function getDoorState (doorConfig, callback) {
   // TODO make door state cache timeout configurable?
   const doorStateCached = cache.get(cacheKey)
   if (doorStateCached) {
-    logger.info(
+    log.info(
       'getDoorState using cached result [%s]for door state',
       doorStateCached
     )
     callback && callback(error, doorStateCached)
   } else {
     if (doorStateUpdateInProcess.has(doorStatusTopic)) {
-      logger.info('getDoorState skipped door state due to pending update')
+      log.info('getDoorState skipped door state due to pending update')
     } else {
-      logger.debug('getDoorState door state MQTT call')
+      log.debug('getDoorState door state MQTT call')
       doorStateUpdateInProcess.add(doorStatusTopic)
       const currentState = mqttDoorStates.get(doorStatusTopic) ?? 'up'
       // add state to cache for 15 seconds
@@ -90,17 +90,17 @@ export function getDoorState (doorConfig, callback) {
   }
 }
 
-export function openDoor (doorConfig) {
+export function openDoor (doorConfig, log = logger) {
   const doorMoveTopic = doorConfig?.doorMoveTopic
   if (!doorMoveTopic) {
-    logger.error('openDoor missing doorMoveTopic')
+    log.error('openDoor missing doorMoveTopic')
     return
   }
 
-  logger.debug('opening door')
+  log.debug('opening door')
 
   mqttClient.publishAsync(doorMoveTopic, 'OPEN').catch((err) => {
-    logger.error('problem moving door: %s', err)
+    log.error('problem moving door: %s', err)
   })
 }
 
